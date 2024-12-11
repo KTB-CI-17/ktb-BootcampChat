@@ -40,6 +40,12 @@ router.delete('/account',
   userController.deleteAccount
 );
 
+// 비밀번호 변경
+router.put('/password',
+  auth,
+  userController.changePassword
+);
+
 // API 상태 확인
 router.get('/status', (req, res) => {
   res.json({

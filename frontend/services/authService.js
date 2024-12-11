@@ -135,7 +135,7 @@ class AuthService {
 
       if (error.response?.status === 401) {
         Toast.error('이메일 주소가 없거나 비밀번호가 틀렸습니다.');
-        throw new Error('이메일 주소가 없거나 비밀번호가 틀렸습니다.');
+        throw new Error('���메일 주소가 없거나 비밀번호가 틀렸습니다.');
       }
 
       if (error.response?.status === 429) {
@@ -266,7 +266,7 @@ class AuthService {
       }
 
       const response = await axios.put(
-        `${API_URL}/api/users/profile`,
+        `${API_URL}/api/users/password`,
         {
           currentPassword,
           newPassword
@@ -437,7 +437,7 @@ class AuthService {
         case 429:
           return new Error(message || '너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.');
         case 500:
-          return new Error(message || '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+          return new Error(message || '서버 오류가 발생했습니다. 잠시 후 다시 시도��주세요.');
         default:
           return new Error(message || '요청 처리 중 오류가 발생했습니다.');
       }

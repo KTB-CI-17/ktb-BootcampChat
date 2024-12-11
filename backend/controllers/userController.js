@@ -246,7 +246,7 @@ exports.uploadProfileImage = async (req, res) => {
     }
     res.status(500).json({
       success: false,
-      message: '이미지 업로드 중 오류가 발생했습니다.'
+      message: '이미지 업로드 중 오류가 발생했습���다.'
     });
   }
 };
@@ -323,6 +323,49 @@ exports.deleteAccount = async (req, res) => {
     res.status(500).json({
       success: false,
       message: '회원 탈퇴 처리 중 오류가 발생했습니다.'
+    });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    // 필수 필드 검증
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: '현재 비밀번호와 새 비밀번호를 모두 입력해주세요.'
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+    
+    // 현재 비밀번호 확인
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: '현재 비밀번호가 일치하지 않습니다.'
+      });
+    }
+
+    // 새 비밀번호 해싱
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    
+    await user.save();
+
+    res.json({
+      success: true,
+      message: '비밀번호가 성공적으로 변경되었습니다.'
+    });
+    
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({
+      success: false,
+      message: '비밀번호 변경 중 오류가 발생했습니다.'
     });
   }
 };

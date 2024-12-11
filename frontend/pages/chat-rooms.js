@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React from 'react';
+import ReactDOM from 'react-dom';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import { Card } from '@goorm-dev/vapor-core';
@@ -7,7 +9,13 @@ import {
   Status,
   Spinner,
   Text,
-  Alert
+  Alert,
+  Modal,
+  ModalHeader,
+  ModalBody,
+  FormGroup,
+  Label,
+  Input
 } from '@goorm-dev/vapor-components';
 import {
   HScrollTable,
@@ -163,6 +171,13 @@ const TableWrapper = ({ children, onScroll, loadingMore, hasMore, rooms }) => {
       )}
     </div>
   );
+};
+
+const showPasswordPrompt = () => {
+  return new Promise((resolve) => {
+    const password = window.prompt('채팅방 비밀번호를 입력해주세요.');
+    resolve(password);
+  });
 };
 
 function ChatRoomsComponent() {
@@ -411,7 +426,7 @@ function ChatRoomsComponent() {
     }
   }, [loadingMore, hasMore, rooms.length, pageSize, sorting, handleFetchError]);
 
-  // 페이지 인덱스 변경 시 데이터 로드
+  // 페이지 인덱스 변경 시 데이터 
   useEffect(() => {
     if (pageIndex > 0) {
       fetchRooms(true);
@@ -565,17 +580,29 @@ function ChatRoomsComponent() {
     if (connectionStatus !== CONNECTION_STATUS.CONNECTED) {
       setError({
         title: '채팅방 입장 실패',
-        message: '서버와 연결이 끊어져 있습니다.',
+        message: '서버�� 연결이 끊어져 있습니다.',
         type: 'danger'
       });
       return;
     }
 
     try {
-      const response = await axiosInstance.post(`/api/rooms/${roomId}/join`, {}, {
-        timeout: 5000
-      });
-      
+      // 먼저 방 정보를 조회하여 비밀번호 필요 여부 확인
+      const roomResponse = await axiosInstance.get(`/api/rooms/${roomId}`);
+      const room = roomResponse.data.data;
+
+      let password;
+      if (room.hasPassword) {
+        password = await showPasswordPrompt();
+        if (!password) return; // 사용자가 취소한 경우
+      }
+
+      const response = await axiosInstance.post(
+        `/api/rooms/${roomId}/join`,
+        password ? { password } : {},
+        { timeout: 5000 }
+      );
+
       if (response.data.success) {
         router.push(`/chat?room=${roomId}`);
       }
@@ -587,6 +614,8 @@ function ChatRoomsComponent() {
         errorMessage = '채팅방을 찾을 수 없습니다.';
       } else if (error.response?.status === 403) {
         errorMessage = '채팅방 입장 권한이 없습니다.';
+      } else if (error.response?.status === 401) {
+        errorMessage = '비밀번호가 일치하지 않습니다.';
       }
       
       setError({

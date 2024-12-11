@@ -50,14 +50,20 @@ const UserSchema = new mongoose.Schema({
 function encryptEmail(email) {
   if (!email) return null;
   try {
+    // hex 문자열을 버퍼로 변환
+    const key = Buffer.from(encryptionKey, 'hex');
+    // 키 길이가 32바이트가 아닌 경우 처리
+    const normalizedKey = key.length === 32 ? key : 
+      crypto.createHash('sha256').update(String(key)).digest();
+    
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
+    const cipher = crypto.createCipheriv('aes-256-cbc', normalizedKey, iv);
     let encrypted = cipher.update(email, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     return iv.toString('hex') + ':' + encrypted;
   } catch (error) {
     console.error('Email encryption error:', error);
-    return null;
+    throw new Error('이메일 암호화 중 오류가 발생했습니다.');
   }
 }
 

@@ -26,3 +26,10 @@ Thumbs.db
 
 # VSCode settings
 .vscode/
+
+# nvm
+.nvmrc
+.node-version
+
+# cursor
+.cursorrules
