@@ -1,4 +1,22 @@
 ---
+# Stop all running Docker containers
+- name: Stop all running Docker containers
+  shell: |
+    docker stop $(docker ps -aq) || true
+  ignore_errors: true
+
+# Remove all Docker containers
+- name: Remove all Docker containers
+  shell: |
+    docker rm $(docker ps -aq) || true
+  ignore_errors: true
+
+# Remove all Docker images
+- name: Remove all Docker images
+  shell: |
+    docker rmi $(docker images -aq) || true
+  ignore_errors: true
+
 # Pull Docker images
 - name: Pull Frontend Docker image
   docker_image:
