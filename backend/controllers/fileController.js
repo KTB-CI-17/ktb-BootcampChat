@@ -131,8 +131,8 @@ exports.uploadFile = async (req, res) => {
 
 // S3 키 생성 함수
 const generateS3Key = (userId, filename) => {
-  const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '/');
-  return `uploads/${userId}/${datePrefix}/${filename}`;
+  const datePrefix = new Date().toISOString().slice(0, 10); // YYYY-MM-DD 형식 유지
+  return `file/${datePrefix}/${filename}`;
 };
 
 exports.uploadFile = async (req, res) => {
