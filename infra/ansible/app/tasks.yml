@@ -1,0 +1,25 @@
+---
+- name: Update and upgrade system packages
+  apt:
+    update_cache: yes
+    upgrade: dist
+
+- name: Install Docker
+  apt:
+    name: docker.io
+    state: present
+    update_cache: yes
+
+# Ensure Docker service is running
+- name: Ensure Docker service is started
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+  become: yes
+
+# Login to Docker
+- name: Login to Docker Hub
+  docker_login:
+    username: "{{ docker_login_user }}"
+    password: "{{ docker_login_password }}"
