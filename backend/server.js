@@ -21,7 +21,8 @@ const corsOptions = {
     'https://bootcampchat-fe.run.goorm.site',
     'http://localhost:3000',
     'https://localhost:3000',
-    'http://ci-app-alb-front-1616675791.ap-northeast-2.elb.amazonaws.com',
+    'http://ci-app-alb-front-1257559862.ap-northeast-2.elb.amazonaws.com',
+    'http://chat.goorm-ktb-017.goorm.team',
     'http://0.0.0.0:3000',
     'https://0.0.0.0:3000'
   ],

@@ -23,20 +23,20 @@
 
 - hosts: front
   vars_files:
-    - app/vars.yml
+#    - app/vars.yml
     - front/vars.yml
-    - common/vars.yml
+#    - common/vars.yml
   tasks:
-    - import_tasks: app/tasks.yml
+#    - import_tasks: app/tasks.yml
     - import_tasks: front/tasks.yml
-    - import_tasks: common/tasks.yml
+#    - import_tasks: common/tasks.yml
 
 - hosts: back
   vars_files:
-    - app/vars.yml
+#    - app/vars.yml
     - back/vars.yml
-    - common/vars.yml
+#    - common/vars.yml
   tasks:
-    - import_tasks: app/tasks.yml
+#    - import_tasks: app/tasks.yml
     - import_tasks: back/tasks.yml
-    - import_tasks: common/tasks.yml
+#    - import_tasks: common/tasks.yml

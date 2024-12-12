@@ -22,31 +22,31 @@ services:
       - "5000:5000"
     env_file:
       - ./backend/.env  # 백엔드 환경 변수 파일 지정
-    depends_on:
-      - mongo
-      - redis
+#    depends_on:
+#      - mongo
+#      - redis
     networks:
       - app-network
 
-  mongo:
-    image: mongo:7.0
-    restart: always
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-    networks:
-      - app-network
-
-  redis:
-    image: redis:7.0-alpine
-    restart: always
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - app-network
+#  mongo:
+#    image: mongo:7.0
+#    restart: always
+#    ports:
+#      - "27017:27017"
+#    volumes:
+#      - mongo-data:/data/db
+#    networks:
+#      - app-network
+#
+#  redis:
+#    image: redis:7.0-alpine
+#    restart: always
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - redis-data:/data
+#    networks:
+#      - app-network
 
 volumes:
   mongo-data:

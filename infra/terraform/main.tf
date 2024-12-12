@@ -55,7 +55,7 @@ data "aws_security_group" "existing_sg" {
 
 
 resource "aws_instance" "ec2_instances_front_a" {
-  count         = 4
+  count         = 6
   ami           = "ami-040c33c6a51fd5d96"
   instance_type = "t3.small"
   key_name      = "stress-test-key"
@@ -71,7 +71,7 @@ resource "aws_instance" "ec2_instances_front_a" {
 }
 
 resource "aws_instance" "ec2_instances_front_c" {
-  count         = 4
+  count         = 5
   ami           = "ami-040c33c6a51fd5d96"
   instance_type = "t3.small"
   key_name      = "stress-test-key"
@@ -90,7 +90,7 @@ resource "aws_instance" "ec2_instances_front_c" {
 
 
 resource "aws_instance" "ec2_instances_back_a" {
-  count         = 4
+  count         = 6
   ami           = "ami-040c33c6a51fd5d96"
   instance_type = "t3.small"
   key_name      = "stress-test-key"
@@ -106,7 +106,7 @@ resource "aws_instance" "ec2_instances_back_a" {
 }
 
 resource "aws_instance" "ec2_instances_back_c" {
-  count         = 4
+  count         = 5
   ami           = "ami-040c33c6a51fd5d96"
   instance_type = "t3.small"
   key_name      = "stress-test-key"
@@ -138,7 +138,7 @@ resource "aws_instance" "ec2_instances_mongo" {
 }
 
 resource "aws_instance" "ec2_instances_redis" {
-  count         = 4
+  count         = 3
   ami           = "ami-040c33c6a51fd5d96"
   instance_type = "t3.small"
   key_name      = "stress-test-key"
@@ -201,7 +201,7 @@ resource "aws_lb_target_group" "app_tg_front" {
   target_type = "instance"
 
   health_check {
-    path                = "/health"
+    path                = "/"
     interval            = 30
     timeout             = 5
     healthy_threshold   = 3
