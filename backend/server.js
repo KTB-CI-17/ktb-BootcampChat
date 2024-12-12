@@ -71,8 +71,29 @@ app.use('/api', routes);
 
 // Socket.IO 설정
 const io = socketIO(server, { cors: corsOptions });
-require('./sockets/chat')(io);
 
+// Redis Adapter 설정
+const setupRedisAdapter = async () => {
+  try {
+    // Redis 메인 클라이언트 연결
+    await redisClient.connect();
+
+    // pub/sub을 위한 새로운 Redis 클라이언트 생성
+    const pubClient = redisClient.client;
+    const subClient = pubClient.duplicate();
+
+    // subClient 연결
+    await subClient.connect();
+
+    // Redis adapter 설정
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log('Socket.IO Redis adapter is ready');
+  } catch (error) {
+    console.error('Redis Adapter 설정 실패:', error);
+  }
+};
+
+require('./sockets/chat')(io);
 // Socket.IO 객체 전달
 initializeSocket(io);
 
@@ -98,17 +119,21 @@ app.use((err, req, res, next) => {
 
 // 서버 시작
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('MongoDB Connected');
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log('Environment:', process.env.NODE_ENV);
-      console.log('API Base URL:', `http://0.0.0.0:${PORT}/api`);
+    .then(async () => {
+      console.log('MongoDB Connected');
+
+      // Redis Adapter 설정
+      await setupRedisAdapter();
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log('Environment:', process.env.NODE_ENV);
+        console.log('API Base URL:', `http://0.0.0.0:${PORT}/api`);
+      });
+    })
+    .catch(err => {
+      console.error('Server startup error:', err);
+      process.exit(1);
     });
-  })
-  .catch(err => {
-    console.error('Server startup error:', err);
-    process.exit(1);
-  });
 
 module.exports = { app, server };
