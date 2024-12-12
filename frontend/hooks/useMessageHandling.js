@@ -1,18 +1,57 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Toast } from '../components/Toast';
 import fileService from '../services/fileService';
+import {useMessageQueue} from "./useMessageQueue";
+import { useEffect } from 'react';
 
 export const useMessageHandling = (socketRef, currentUser, router, handleSessionError, messages = []) => {
- const [message, setMessage] = useState('');
- const [showEmojiPicker, setShowEmojiPicker] = useState(false);
- const [showMentionList, setShowMentionList] = useState(false);
- const [mentionFilter, setMentionFilter] = useState('');
- const [mentionIndex, setMentionIndex] = useState(0);
- const [filePreview, setFilePreview] = useState(null);
- const [uploading, setUploading] = useState(false);
- const [uploadProgress, setUploadProgress] = useState(0);
- const [uploadError, setUploadError] = useState(null);
- const [loadingMessages, setLoadingMessages] = useState(false);
+  const [message, setMessage] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showMentionList, setShowMentionList] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [filePreview, setFilePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState(new Map());
+  const [queuedMessages, setQueuedMessages] = useState(new Map());
+  const messageTimeoutsRef = useRef(new Map());
+  const { messageStates, updateMessageState, handleMessageRetry } = useMessageQueue(socketRef, currentUser);
+
+// 임시 메시지 생성 함수
+  const createTempMessage = useCallback((content, type = 'text', fileData = null) => {
+    return {
+      _id: `temp-${Date.now()}`,
+      content,
+      sender: currentUser,
+      type,
+      fileData,
+      timestamp: new Date(),
+      isPending: true,
+      room: router?.query?.room
+    };
+  }, [currentUser, router?.query?.room]);
+
+    // 메시지 큐 상태 업데이트 함수
+    const updateMessageQueue = useCallback((tempId, status, finalMessage = null) => {
+        setPendingMessages(prev => {
+            const newPending = new Map(prev);
+            if (status === 'completed') {
+                newPending.delete(tempId);
+            } else {
+                newPending.set(tempId, { status, message: finalMessage || prev.get(tempId)?.message });
+            }
+            return newPending;
+        });
+    }, []);
+
+  // 메시지 타임아웃 처리
+  const handleMessageTimeout = useCallback((tempId) => {
+    updateMessageQueue(tempId, 'failed');
+    Toast.error('메시지 전송이 실패했습니다. 다시 시도해주세요.');
+  }, [updateMessageQueue]);
 
  const handleMessageChange = useCallback((e) => {
    const newValue = e.target.value;
@@ -89,84 +128,91 @@ export const useMessageHandling = (socketRef, currentUser, router, handleSession
    }
  }, [socketRef, router?.query?.room, loadingMessages, messages]);
 
- const handleMessageSubmit = useCallback(async (messageData) => {
-   if (!socketRef.current?.connected || !currentUser) {
-     console.error('[Chat] Cannot send message: Socket not connected');
-     Toast.error('채팅 서버와 연결이 끊어졌습니다.');
-     return;
-   }
+  const handleMessageSubmit = useCallback(async (e) => {
+    if (!socketRef.current?.connected || !currentUser) {
+      console.error('[Chat] Cannot send message: Socket not connected');
+      Toast.error('채팅 서버와 연결이 끊어졌습니다.');
+      return;
+    }
 
-   const roomId = router?.query?.room;
-   if (!roomId) {
-     Toast.error('채팅방 정보를 찾을 수 없습니다.');
-     return;
-   }
+    const roomId = router?.query?.room;
+    if (!roomId) {
+      Toast.error('채팅방 정보를 찾을 수 없습니다.');
+      return;
+    }
 
-   try {
-     console.log('[Chat] Sending message:', messageData);
+    try {
+      // 메시지 데이터 준비
+      const messageData = {
+        room: roomId,  // 명시적으로 roomId 추가
+        type: filePreview ? 'file' : 'text',
+        content: message.trim(),
+        fileData: filePreview,
+        tempId: `temp-${Date.now()}`
+      };
 
-     if (messageData.type === 'file') {
-       setUploading(true);
-       setUploadError(null);
-       setUploadProgress(0);
+      // 임시 메시지 상태 설정
+      updateMessageState(messageData.tempId, 'pending', {
+        originalMessage: messageData,
+        timestamp: new Date(),
+        sender: currentUser
+      });
 
-       const uploadResponse = await fileService.uploadFile(
-         messageData.fileData.file,
-         (progress) => setUploadProgress(progress)
-       );
+      // 메시지 전송
+      socketRef.current.emit('chatMessage', messageData);
 
-       if (!uploadResponse.success) {
-         throw new Error(uploadResponse.message || '파일 업로드에 실패했습니다.');
-       }
+      // UI 상태 초기화
+      setMessage('');
+      setShowEmojiPicker(false);
+      setFilePreview(null);
 
-       socketRef.current.emit('chatMessage', {
-         room: roomId,
-         type: 'file',
-         content: messageData.content || '',
-         fileData: {
-           _id: uploadResponse.data.file._id,
-           filename: uploadResponse.data.file.filename,
-           originalname: uploadResponse.data.file.originalname,
-           mimetype: uploadResponse.data.file.mimetype,
-           size: uploadResponse.data.file.size
-         }
-       });
+    } catch (error) {
+      console.error('Message submit error:', error);
+      Toast.error(error.message || '메시지 전송에 실패했습니다.');
+    }
+  }, [currentUser, socketRef, updateMessageState, message, filePreview, router?.query?.room]);
 
-       setFilePreview(null);
-       setMessage('');
-       setUploading(false);
-       setUploadProgress(0);
+  // 컴포넌트 언마운트 시 타임아웃 정리
+  useEffect(() => {
+    return () => {
+      messageTimeoutsRef.current.forEach(timeoutId => {
+        clearTimeout(timeoutId);
+      });
+      messageTimeoutsRef.current.clear();
+    };
+  }, []);
 
-     } else if (messageData.content?.trim()) {
-       socketRef.current.emit('chatMessage', {
-         room: roomId,
-         type: 'text',
-         content: messageData.content.trim()
-       });
+  // Socket 이벤트 리스너 설정
+  useEffect(() => {
+    if (!socketRef.current) return;
 
-       setMessage('');
-     }
+    // 메시지 처리 완료 이벤트
+    const handleMessageProcessed = (message) => {
+      if (!message?._id) return;
 
-     setShowEmojiPicker(false);
-     setShowMentionList(false);
+      // pending 메시지 찾기
+      pendingMessages.forEach((pendingData, tempId) => {
+        if (pendingData.message?.content === message.content &&
+            pendingData.message?.sender?._id === message.sender) {
+          // 타임아웃 제거
+          const timeoutId = messageTimeoutsRef.current.get(tempId);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            messageTimeoutsRef.current.delete(tempId);
+          }
 
-   } catch (error) {
-     console.error('[Chat] Message submit error:', error);
+          // pending 상태 제거
+          updateMessageQueue(tempId, 'completed');
+        }
+      });
+    };
 
-     if (error.message?.includes('세션') || 
-         error.message?.includes('인증') || 
-         error.message?.includes('토큰')) {
-       await handleSessionError();
-       return;
-     }
+    socketRef.current.on('message', handleMessageProcessed);
 
-     Toast.error(error.message || '메시지 전송 중 오류가 발생했습니다.');
-     if (messageData.type === 'file') {
-       setUploadError(error.message);
-       setUploading(false);
-     }
-   }
- }, [currentUser, router, handleSessionError, socketRef]);
+    return () => {
+      socketRef.current?.off('message', handleMessageProcessed);
+    };
+  }, [socketRef, pendingMessages, updateMessageQueue]);
 
  const handleEmojiToggle = useCallback(() => {
    setShowEmojiPicker(prev => !prev);
@@ -252,7 +298,13 @@ export const useMessageHandling = (socketRef, currentUser, router, handleSession
    handleLoadMore,
    getFilteredParticipants,
    insertMention,
-   removeFilePreview
+   removeFilePreview,
+   pendingMessages,
+   queuedMessages,
+   updateMessageQueue,
+   createTempMessage,
+   messageStates,
+   handleMessageRetry
  };
 };
 

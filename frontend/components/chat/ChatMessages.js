@@ -1,6 +1,28 @@
 import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { Spinner, Text } from '@goorm-dev/vapor-components';
 import { SystemMessage, FileMessage, UserMessage, AIMessage } from './Message';
+import { Clock } from 'lucide-react';
+
+// PendingMessage 컴포넌트 추가
+const PendingMessage = React.memo(({ msg }) => {
+  return (
+      <div className="pending-message-wrapper">
+        <div className={`message ${msg.type === 'file' ? 'file-message' : ''} pending`}>
+          {msg.type === 'file' ? (
+              <FileMessage msg={msg} isPending={true} />
+          ) : (
+              <UserMessage msg={msg} isPending={true} />
+          )}
+          <div className="pending-indicator">
+            <Clock className="w-4 h-4 text-gray-400 animate-pulse" />
+            <span className="text-xs text-gray-400">대기 중...</span>
+          </div>
+        </div>
+      </div>
+  );
+});
+
+PendingMessage.displayName = 'PendingMessage';
 
 // ScrollHandler 클래스 정의
 class ScrollHandler {
@@ -254,22 +276,23 @@ const EmptyMessages = React.memo(() => (
 ));
 EmptyMessages.displayName = 'EmptyMessages';
 
-const ChatMessages = ({ 
-  messages = [], 
-  streamingMessages = {}, 
-  currentUser = null,
-  room = null,
-  loadingMessages = false,
-  hasMoreMessages = true,
-  onScroll = () => {},
-  onLoadMore = () => {},
-  onReactionAdd = () => {},
-  onReactionRemove = () => {},
-  messagesEndRef,
-  socketRef,
-  scrollToBottomOnNewMessage = true,
-  onScrollPositionChange = () => {}
-}) => {
+const ChatMessages = ({
+                        messages = [],
+                        pendingMessages = new Map(),
+                        streamingMessages = {},
+                        currentUser = null,
+                        room = null,
+                        loadingMessages = false,
+                        hasMoreMessages = true,
+                        onScroll = () => {},
+                        onLoadMore = () => {},
+                        onReactionAdd = () => {},
+                        onReactionRemove = () => {},
+                        messagesEndRef,
+                        socketRef,
+                        scrollToBottomOnNewMessage = true,
+                        onScrollPositionChange = () => {}
+                      }) => {
   const containerRef = useRef(null);
   const lastMessageRef = useRef(null);
   const initialScrollRef = useRef(false);
@@ -383,27 +406,24 @@ const ChatMessages = ({
 
   const allMessages = useMemo(() => {
     if (!Array.isArray(messages)) return [];
-    
+
+    const pendingArray = Array.from(pendingMessages.entries()).map(([id, data]) => ({
+      ...data.message,
+      isPending: true,
+      status: data.status
+    }));
+
     const streamingArray = Object.values(streamingMessages || {});
-    const combinedMessages = [...messages, ...streamingArray];
+    const combinedMessages = [...messages, ...pendingArray, ...streamingArray];
 
     return combinedMessages.sort((a, b) => {
       if (!a?.timestamp || !b?.timestamp) return 0;
       return new Date(a.timestamp) - new Date(b.timestamp);
     });
-  }, [messages, streamingMessages]);
+  }, [messages, pendingMessages, streamingMessages]);
 
   const renderMessage = useCallback((msg, idx) => {
-    if (!msg || !SystemMessage || !FileMessage || !UserMessage || !AIMessage) {
-      console.error('Message component undefined:', {
-        msgType: msg?.type,
-        hasSystemMessage: !!SystemMessage,
-        hasFileMessage: !!FileMessage,
-        hasUserMessage: !!UserMessage,
-        hasAIMessage: !!AIMessage
-      });
-      return null;
-    }
+    if (!msg) return null;
 
     const isLast = idx === allMessages.length - 1;
     const commonProps = {
@@ -413,6 +433,18 @@ const ChatMessages = ({
       onReactionRemove
     };
 
+    // 임시 메시지인 경우
+    if (msg.isPending) {
+      return (
+          <PendingMessage
+              key={msg._id}
+              msg={msg}
+              ref={isLast ? lastMessageRef : null}
+          />
+      );
+    }
+
+    // 일반 메시지 렌더링
     const MessageComponent = {
       system: SystemMessage,
       file: FileMessage,
@@ -420,19 +452,20 @@ const ChatMessages = ({
     }[msg.type] || UserMessage;
 
     return (
-      <MessageComponent
-        key={msg._id || `msg-${idx}`}
-        ref={isLast ? lastMessageRef : null}
-        {...commonProps}
-        msg={msg}
-        content={msg.content}
-        isMine={msg.type !== 'system' ? isMine(msg) : undefined}
-        isStreaming={msg.type === 'ai' ? (msg.isStreaming || false) : undefined}
-        messageRef={msg}
-        socketRef={socketRef}
-      />
+        <MessageComponent
+            key={msg._id || `msg-${idx}`}
+            ref={isLast ? lastMessageRef : null}
+            {...commonProps}
+            msg={msg}
+            content={msg.content}
+            isMine={msg.type !== 'system' ? isMine(msg) : undefined}
+            isStreaming={msg.type === 'ai' ? (msg.isStreaming || false) : undefined}
+            messageRef={msg}
+            socketRef={socketRef}
+        />
     );
   }, [allMessages.length, currentUser, room, isMine, onReactionAdd, onReactionRemove, socketRef]);
+
 
   return (
     <div 

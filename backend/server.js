@@ -7,6 +7,9 @@ const socketIO = require('socket.io');
 const path = require('path');
 const { router: roomsRouter, initializeSocket } = require('./routes/api/rooms');
 const routes = require('./routes');
+const messageQueue = require('./utils/queue');
+const redisClient = require('./utils/redisClient');
+const { createAdapter } = require('@socket.io/redis-adapter');
 
 const app = express();
 const server = http.createServer(app);
@@ -28,9 +31,9 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'x-auth-token', 
+    'Content-Type',
+    'Authorization',
+    'x-auth-token',
     'x-session-id',
     'Cache-Control',
     'Pragma'
@@ -59,7 +62,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // 기본 상태 체크
 app.get('/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     env: process.env.NODE_ENV
@@ -75,17 +78,12 @@ const io = socketIO(server, { cors: corsOptions });
 // Redis Adapter 설정
 const setupRedisAdapter = async () => {
   try {
-    // Redis 메인 클라이언트 연결
     await redisClient.connect();
 
-    // pub/sub을 위한 새로운 Redis 클라이언트 생성
     const pubClient = redisClient.client;
     const subClient = pubClient.duplicate();
-
-    // subClient 연결
     await subClient.connect();
 
-    // Redis adapter 설정
     io.adapter(createAdapter(pubClient, subClient));
     console.log('Socket.IO Redis adapter is ready');
   } catch (error) {
@@ -94,7 +92,6 @@ const setupRedisAdapter = async () => {
 };
 
 require('./sockets/chat')(io);
-// Socket.IO 객체 전달
 initializeSocket(io);
 
 // 404 에러 핸들러
@@ -121,8 +118,6 @@ app.use((err, req, res, next) => {
 mongoose.connect(process.env.MONGO_URI)
     .then(async () => {
       console.log('MongoDB Connected');
-
-      // Redis Adapter 설정
       await setupRedisAdapter();
 
       server.listen(PORT, '0.0.0.0', () => {
@@ -135,5 +130,21 @@ mongoose.connect(process.env.MONGO_URI)
       console.error('Server startup error:', err);
       process.exit(1);
     });
+
+// 메시지 큐 처리 시작
+messageQueue.startProcessing().catch(error => {
+  console.error('Message queue processing error:', error);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await messageQueue.cleanup();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  await messageQueue.cleanup();
+  process.exit(0);
+});
 
 module.exports = { app, server };
